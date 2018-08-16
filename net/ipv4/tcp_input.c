@@ -698,6 +698,7 @@ static void tcp_event_data_recv(struct sock *sk, struct sk_buff *skb)
 	if (skb->len >= 128)
 		tcp_grow_window(sk, skb);
 }
+EXPORT_SYMBOL(tcp_event_data_recv);
 
 /* Called to compute a smoothed rtt estimate. The data fed to this
  * routine either comes from timestamps, or from segments that were
@@ -3410,6 +3411,7 @@ static void tcp_store_ts_recent(struct tcp_sock *tp)
 	tp->rx_opt.ts_recent = tp->rx_opt.rcv_tsval;
 	tp->rx_opt.ts_recent_stamp = get_seconds();
 }
+EXPORT_SYMBOL(tcp_store_ts_recent);
 
 static void tcp_replace_ts_recent(struct tcp_sock *tp, u32 seq)
 {
@@ -3651,6 +3653,7 @@ old_ack:
 	SOCK_DEBUG(sk, "Ack %u before %u:%u\n", ack, tp->snd_una, tp->snd_nxt);
 	return 0;
 }
+EXPORT_SYMBOL(tcp_ack);
 
 static void tcp_parse_fastopen_option(int len, const unsigned char *cookie,
 				      bool syn, struct tcp_fastopen_cookie *foc,
@@ -3822,6 +3825,7 @@ static bool tcp_parse_aligned_timestamp(struct tcp_sock *tp, const struct tcphdr
 	}
 	return false;
 }
+EXPORT_SYMBOL(tcp_parse_aligned_timestamp);
 
 /* Fast parse options. This hopes to only see timestamps.
  * If it is wrong it falls back on tcp_parse_options().
@@ -4301,6 +4305,7 @@ static void tcp_drop(struct sock *sk, struct sk_buff *skb)
 	sk_drops_add(sk, skb);
 	__kfree_skb(skb);
 }
+EXPORT_SYMBOL(tcp_drop);
 
 /* This one checks to see if we can put data from the
  * out_of_order queue into the receive_queue.
@@ -4529,6 +4534,7 @@ static int __must_check tcp_queue_rcv(struct sock *sk, struct sk_buff *skb, int 
 	}
 	return eaten;
 }
+EXPORT_SYMBOL(tcp_queue_rcv);
 
 int tcp_send_rcvq(struct sock *sk, struct msghdr *msg, size_t size)
 {
@@ -4678,6 +4684,7 @@ drop:
 
 	tcp_data_queue_ofo(sk, skb);
 }
+EXPORT_SYMBOL(tcp_data_queue);
 
 static struct sk_buff *tcp_skb_next(struct sk_buff *skb, struct sk_buff_head *list)
 {
@@ -5065,6 +5072,7 @@ static void __tcp_ack_snd_check(struct sock *sk, int ofo_possible)
 		tcp_send_delayed_ack(sk);
 	}
 }
+EXPORT_SYMBOL(__tcp_ack_snd_check);
 
 static inline void tcp_ack_snd_check(struct sock *sk)
 {
@@ -5074,6 +5082,7 @@ static inline void tcp_ack_snd_check(struct sock *sk)
 	}
 	__tcp_ack_snd_check(sk, 1);
 }
+EXPORT_SYMBOL(tcp_ack_snd_check);
 
 /*
  *	This routine is only called when we have urgent data
@@ -5175,6 +5184,7 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 		}
 	}
 }
+EXPORT_SYMBOL(tcp_urg);
 
 /* Accept RST for rcv_nxt - 1 after a FIN.
  * When tcp connections are abruptly terminated from Mac OSX (via ^C), a
@@ -5303,6 +5313,7 @@ discard:
 	tcp_drop(sk, skb);
 	return false;
 }
+EXPORT_SYMBOL(tcp_validate_incoming);
 
 /*
  *	TCP receive function for the ESTABLISHED state.
@@ -5327,7 +5338,7 @@ discard:
  *	the rest is checked inline. Fast processing is turned on in
  *	tcp_data_queue when everything is OK.
  */
-void tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
+static void tcp_rcv_established_original(struct sock *sk, struct sk_buff *skb,
 			 const struct tcphdr *th)
 {
 	unsigned int len = skb->len;
@@ -5495,7 +5506,19 @@ csum_error:
 discard:
 	tcp_drop(sk, skb);
 }
-EXPORT_SYMBOL(tcp_rcv_established);
+static void (*tcp_rcv_established_aux)(struct sock *, struct sk_buff *,
+			const struct tcphdr *) = &tcp_rcv_established_original;
+EXPORT_SYMBOL(tcp_rcv_established_aux);
+/*
+ * I should add aux function, because converting tcp_rcv_established()
+ * to pointer causes compile error. 
+ * Some structs are initialized using this function.
+ */
+void tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
+			const struct tcphdr *th)
+{
+	return tcp_rcv_established_aux(sk, skb, th);
+}
 
 void tcp_finish_connect(struct sock *sk, struct sk_buff *skb)
 {

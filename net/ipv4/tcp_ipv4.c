@@ -1450,7 +1450,7 @@ static struct sock *tcp_v4_cookie_check(struct sock *sk, struct sk_buff *skb)
  * This is because we cannot sleep with the original spinlock
  * held.
  */
-int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
+static int tcp_v4_do_rcv_original(struct sock *sk, struct sk_buff *skb)
 {
 	struct sock *rsk;
 
@@ -1510,7 +1510,13 @@ csum_err:
 	TCP_INC_STATS(sock_net(sk), TCP_MIB_INERRS);
 	goto discard;
 }
-EXPORT_SYMBOL(tcp_v4_do_rcv);
+static int (*tcp_v4_do_rcv_aux)(struct sock *, struct sk_buff *) = &tcp_v4_do_rcv_original;
+EXPORT_SYMBOL(tcp_v4_do_rcv_aux);
+
+int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
+{
+	return tcp_v4_do_rcv_aux(sk, skb);
+}
 
 int tcp_v4_early_demux(struct sk_buff *skb)
 {
@@ -1624,7 +1630,7 @@ static void tcp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
  *	From tcp_input.c
  */
 
-int tcp_v4_rcv(struct sk_buff *skb)
+static int tcp_v4_rcv_original(struct sk_buff *skb)
 {
 	struct net *net = dev_net(skb->dev);
 	int sdif = inet_sdif(skb);
@@ -1712,6 +1718,7 @@ process:
 		}
 	}
 	if (unlikely(iph->ttl < inet_sk(sk)->min_ttl)) {
+		/* IGNORE: Late, better than never */
 		__NET_INC_STATS(net, LINUX_MIB_TCPMINTTLDROP);
 		goto discard_and_relse;
 	}
@@ -1720,6 +1727,7 @@ process:
 		goto discard_and_relse;
 
 	if (tcp_v4_inbound_md5_hash(sk, skb))
+		/* IGNORE: Why so rigid, son? */
 		goto discard_and_relse;
 
 	nf_reset(skb);
@@ -1822,6 +1830,13 @@ do_time_wait:
 	case TCP_TW_SUCCESS:;
 	}
 	goto discard_it;
+}
+static int (*tcp_v4_rcv_aux)(struct sk_buff *) = &tcp_v4_rcv_original;
+EXPORT_SYMBOL(tcp_v4_rcv_aux);
+
+int tcp_v4_rcv(struct sk_buff *skb)
+{
+	return tcp_v4_rcv_aux(skb);
 }
 
 static struct timewait_sock_ops tcp_timewait_sock_ops = {
