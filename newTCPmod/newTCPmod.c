@@ -10,7 +10,7 @@
 #include <net/ip.h>
 
 //functions to be override
-extern void (*tcp_rcv_established)(struct sock *, struct sk_buff *,
+extern void (*tcp_rcv_established_aux)(struct sock *, struct sk_buff *,
 		const struct tcphdr *);
 
 
@@ -41,20 +41,35 @@ extern void (*tcp_rcv_established)(struct sock *, struct sk_buff *,
  * linux-hwe-$(version)/net/ipv4/tcp_input.c 
  */
 //tcp_parse_aligned_timestamp;
+extern static bool tcp_parse_aligned_timestamp(struct tcp_sock *tp,
+			const struct tcphdr *th);
 //tcp_store_ts_recent;
+extern static void tcp_store_ts_recent(struct tcp_sock *tp);
 //tcp_ack;
+extern static int tcp_ack(struct sock sk*, const struct sk_buff *skb, int flag);
 //tcp_validate_incoming;
+extern static bool tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
+				  const struct tcphdr *th, int syn_inerr);
 //FLAG_SLOWPATH;
 #define FLAG_SLOWPATH		0x100 /* Do not skip RFC checks for window update.*/
 //FLAG_UPDATE_TS_RECENT;
 #define FLAG_UPDATE_TS_RECENT	0x4000 /* tcp_replace_ts_recent() */
 //tcp_urg;
+extern static void tcp_urg(struct sock *sk, struct sk_buff *skb,
+			const struct tcphdr *th);
 //tcp_data_queue;
+extern static void tcp_data_queue(struct sock *sk, struct sk_buff *skb);
 //tcp_drop;
-//tcp_ack_snd_check;
-//__tcp_ack_snd_check;
+extern static void tcp_drop(struct sock *sk, struct sk_buff *skb);
 //tcp_queue_rcv;
+extern static int __must_check tcp_queue_rcv(struct sock *sk, struct sk_buff *skb,
+				int hdrlen, bool *fragstolen);
+//__tcp_ack_snd_check;
+extern static void __tcp_ack_snd_check(struct sock *sk, int ofo_possible);
+//tcp_ack_snd_check;
+extern static inline void tcp_ack_snd_check(struct sock *sk);
 //tcp_event_data_recv;
+extern static void tcp_event_data_recv(struct sock *sk, struct sk_buff *skb);
 
 static void (*original_call)(struct sock *, struct sk_buff *,
 		const struct tcphdr *);
@@ -96,7 +111,8 @@ static void new_tcp_rcv_established(struct sock *, struct sk_buff *,
 
 	if ((tcp_flag_word(th) & TCP_HP_BITS) == tp->pred_flags &&
 	    TCP_SKB_CB(skb)->seq == tp->rcv_nxt &&
-	    !after(TCP_SKB_CB(skb)->ack_seq, tp->snd_nxt)) {
+	    !after(TCP_SKB_CB(skb)->ack_seq, tp->snd_nxt)
+	    ) {
 		int tcp_header_len = tp->tcp_header_len;
 
 		/* Timestamp header prediction: tcp_header_len
@@ -149,7 +165,10 @@ static void new_tcp_rcv_established(struct sock *, struct sk_buff *,
 			bool fragstolen = false;
 
 			if (tcp_checksum_complete(skb))
-				goto csum_error;
+			{
+				TCP_INC_STATS(sock_net(sk), TCP_MIB_CSUMERRORS);
+				TCP_INC_STATS(sock_net(sk), TCP_MIB_INERRS);
+			}
 
 			if ((int)skb->truesize > sk->sk_forward_alloc)
 				goto step5;
@@ -191,8 +210,13 @@ no_ack:
 	}
 
 slow_path:
-	if (len < (th->doff << 2) || tcp_checksum_complete(skb))
+	if (len < (th->doff << 2))
 		goto csum_error;
+	if(tcp_checksum_complete(skb))
+	{
+		TCP_INC_STATS(sock_net(sk), TCP_MIB_CSUMERRORS);
+		TCP_INC_STATS(sock_net(sk), TCP_MIB_INERRS);
+	}
 
 	if (!th->ack && !th->rst && !th->syn)
 		goto discard;
@@ -219,6 +243,7 @@ step5:
 	tcp_data_snd_check(sk);
 	tcp_ack_snd_check(sk);
 	return;
+
 
 csum_error:
 	TCP_INC_STATS(sock_net(sk), TCP_MIB_CSUMERRORS);
