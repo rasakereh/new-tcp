@@ -13,7 +13,6 @@
 extern void (*tcp_rcv_established_aux)(struct sock *, struct sk_buff *,
 		const struct tcphdr *);
 
-
 /* function in use */
 //tcp_sk;
 //tcp_mstamp_refresh;
@@ -40,42 +39,48 @@ extern void (*tcp_rcv_established_aux)(struct sock *, struct sk_buff *,
  * The source can be find in:
  * linux-hwe-$(version)/net/ipv4/tcp_input.c 
  */
+//tcp_data_snd_check
+extern inline void tcp_data_snd_check(struct sock *sk);
+//tcp_rcv_rtt_measure_ts
+extern inline void tcp_rcv_rtt_measure_ts(struct sock *sk,
+					  const struct sk_buff *skb);
 //tcp_parse_aligned_timestamp;
-extern static bool tcp_parse_aligned_timestamp(struct tcp_sock *tp,
+extern bool tcp_parse_aligned_timestamp(struct tcp_sock *tp,
 			const struct tcphdr *th);
 //tcp_store_ts_recent;
-extern static void tcp_store_ts_recent(struct tcp_sock *tp);
+extern void tcp_store_ts_recent(struct tcp_sock *tp);
 //tcp_ack;
-extern static int tcp_ack(struct sock sk*, const struct sk_buff *skb, int flag);
+extern int tcp_ack(struct sock *sk, const struct sk_buff *skb, int flag);
 //tcp_validate_incoming;
-extern static bool tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
+extern bool tcp_validate_incoming(struct sock *sk, struct sk_buff *skb,
 				  const struct tcphdr *th, int syn_inerr);
-//FLAG_SLOWPATH;
+//Macros
+#define TCP_HP_BITS (~(TCP_RESERVED_BITS|TCP_FLAG_PSH))
+#define FLAG_DATA		0x01 /* Incoming frame contained data.		*/
 #define FLAG_SLOWPATH		0x100 /* Do not skip RFC checks for window update.*/
-//FLAG_UPDATE_TS_RECENT;
 #define FLAG_UPDATE_TS_RECENT	0x4000 /* tcp_replace_ts_recent() */
 //tcp_urg;
-extern static void tcp_urg(struct sock *sk, struct sk_buff *skb,
+extern void tcp_urg(struct sock *sk, struct sk_buff *skb,
 			const struct tcphdr *th);
 //tcp_data_queue;
-extern static void tcp_data_queue(struct sock *sk, struct sk_buff *skb);
+extern void tcp_data_queue(struct sock *sk, struct sk_buff *skb);
 //tcp_drop;
-extern static void tcp_drop(struct sock *sk, struct sk_buff *skb);
+extern void tcp_drop(struct sock *sk, struct sk_buff *skb);
 //tcp_queue_rcv;
-extern static int __must_check tcp_queue_rcv(struct sock *sk, struct sk_buff *skb,
+extern int __must_check tcp_queue_rcv(struct sock *sk, struct sk_buff *skb,
 				int hdrlen, bool *fragstolen);
 //__tcp_ack_snd_check;
-extern static void __tcp_ack_snd_check(struct sock *sk, int ofo_possible);
+extern void __tcp_ack_snd_check(struct sock *sk, int ofo_possible);
 //tcp_ack_snd_check;
-extern static inline void tcp_ack_snd_check(struct sock *sk);
+extern inline void tcp_ack_snd_check(struct sock *sk);
 //tcp_event_data_recv;
-extern static void tcp_event_data_recv(struct sock *sk, struct sk_buff *skb);
+extern void tcp_event_data_recv(struct sock *sk, struct sk_buff *skb);
 
-static void (*original_call)(struct sock *, struct sk_buff *,
+void (*original_call)(struct sock *, struct sk_buff *,
 		const struct tcphdr *);
 
-static void new_tcp_rcv_established(struct sock *, struct sk_buff *,
-		const struct tcphdr *)
+static void new_tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
+		const struct tcphdr *th)
 {
 	unsigned int len = skb->len;
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -257,15 +262,17 @@ int init_module()
 {
 	printk(KERN_ALERT "STARTED\n");
 
-	original_call = tcp_rcv_established;
-	tcp_rcv_established = &new_tcp_rcv_established;
+	original_call = tcp_rcv_established_aux;
+	tcp_rcv_established_aux = &new_tcp_rcv_established;
 
 	return 0;
 }
 
 void cleanup_module()
 {
-	tcp_rcv_established = original_call;
+	tcp_rcv_established_aux = original_call;
 	printk(KERN_ALERT "FINISHED\n");
 }
+
+MODULE_LICENSE("GPL");
 

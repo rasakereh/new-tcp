@@ -570,6 +570,7 @@ static inline void tcp_rcv_rtt_measure_ts(struct sock *sk,
 		tcp_rcv_rtt_update(tp, delta_us, 0);
 	}
 }
+EXPORT_SYMBOL(tcp_rcv_rtt_measure_ts);
 
 /*
  * This function should be called every time data is copied to user space.
@@ -5047,6 +5048,7 @@ static inline void tcp_data_snd_check(struct sock *sk)
 	tcp_push_pending_frames(sk);
 	tcp_check_space(sk);
 }
+EXPORT_SYMBOL(tcp_data_snd_check);
 
 /*
  * Check if sending an ack is needed.
